@@ -1,0 +1,17 @@
+html,body {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+
+#canvas {
+  margin:0;
+  padding:0;
+  background-color: gray;
+  box-sizing: border-box;
+}
+
