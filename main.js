@@ -1,12 +1,12 @@
  
-const MAX_SIZE = 0.02;
-const MIN_SIZE = 0.01;
+const MAX_SIZE = 0.05;
+const MIN_SIZE = 0.005;
 
 const MAX_SPLIT_THRESH = 100;
 const MIN_SPLIT_THRESH = 0.05
 
 const DEFAULT_PT_SIZE = 5;
-const MIN_POP = 10;
+const MIN_POP = 1;
 const MAX_POP = 2000;
 const MAX_INIT_VEL = 0.0001;
 const VEL_JITTER = MAX_INIT_VEL;
@@ -15,9 +15,9 @@ const ANG_MOVE_SPEED = 0.05;
 const LIN_MOVE_SPEED = MAX_INIT_VEL;
 
 const EAT_SIZE_THRESH = 0.95;
-const ENERGY_SIZE_COST = 0.1 / (MAX_SIZE * MAX_SIZE);
+const ENERGY_SIZE_COST = 0.2 / (MAX_SIZE * MAX_SIZE);
 const ENERGY_MOVE_COST = 0.0005;
-const ENERGY_OVERLAP_COST = 0.0002;
+const ENERGY_OVERLAP_COST = 0.005;
 const BASE_ENERGY_INCREASE = ENERGY_SIZE_COST * ((MAX_SIZE - MIN_SIZE) / 10 + MIN_SIZE)**2;
 
 const FRICTION_COEFF = 0.99;
@@ -29,6 +29,7 @@ const SIZE_MUT_FRAC = 0.02;
 const SPLIT_R_MUT_SIZE = 0.01;
 const SPLIT_T_MUT_SIZE = 0.1;
 const CLOCK_RATE_MUT_SIZE = 0.01;
+const COLOR_MUT_SIZE = 7;
 
 const BRAIN_SIZE = 64;
 
@@ -252,12 +253,17 @@ class Gene {
   }
 
   static mut_color(color) {
+
     const r = clip((parseInt(color.slice(0,2), 16) + 
-                Math.floor(Math.random() * 3) - 1), 0, 255).toString(16);
+                Math.floor(Math.random() * COLOR_MUT_SIZE) - Math.floor( 
+                COLOR_MUT_SIZE/2)), 0, 255).toString(16);
     const g = clip((parseInt(color.slice(2,4), 16) + 
-                Math.floor(Math.random() * 3) - 1), 0, 255).toString(16);
+                Math.floor(Math.random() * COLOR_MUT_SIZE) - Math.floor( 
+                COLOR_MUT_SIZE/2)), 0, 255).toString(16);
     const b = clip((parseInt(color.slice(4,6), 16) + 
-                Math.floor(Math.random() * 3) - 1), 0, 255).toString(16);
+                Math.floor(Math.random() * COLOR_MUT_SIZE) - Math.floor( 
+                COLOR_MUT_SIZE/2)), 0, 255).toString(16);
+
     const new_color =  ("0" + r).slice(-2) + ("0" + g).slice(-2) + ("0" + b).slice(-2); 
 
     return new_color;
