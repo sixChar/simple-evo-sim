@@ -1,13 +1,13 @@
  
-const MAX_SIZE = 0.03;
-const MIN_SIZE = 0.001;
+const MAX_SIZE = 0.02;
+const MIN_SIZE = 0.01;
 
 const MAX_SPLIT_THRESH = 100;
 const MIN_SPLIT_THRESH = 0.05
 
 const DEFAULT_PT_SIZE = 5;
-const MIN_POP = 50;
-const MAX_POP = 10000;
+const MIN_POP = 10;
+const MAX_POP = 2000;
 const MAX_INIT_VEL = 0.0001;
 const VEL_JITTER = MAX_INIT_VEL;
 const POS_JITTER = (MAX_SIZE + MIN_SIZE) / 2;
@@ -15,8 +15,9 @@ const ANG_MOVE_SPEED = 0.05;
 const LIN_MOVE_SPEED = MAX_INIT_VEL;
 
 const EAT_SIZE_THRESH = 0.95;
-const ENERGY_SIZE_COST = 0.01 / (MAX_SIZE * MAX_SIZE);
+const ENERGY_SIZE_COST = 0.1 / (MAX_SIZE * MAX_SIZE);
 const ENERGY_MOVE_COST = 0.0005;
+const ENERGY_OVERLAP_COST = 0.0002;
 const BASE_ENERGY_INCREASE = ENERGY_SIZE_COST * ((MAX_SIZE - MIN_SIZE) / 10 + MIN_SIZE)**2;
 
 const FRICTION_COEFF = 0.99;
@@ -364,7 +365,7 @@ class Pop {
   }
 
   enervate() {
-    this.energy -= 0.0001;
+    this.energy -= ENERGY_OVERLAP_COST;
   }
 
   makeChild() {
