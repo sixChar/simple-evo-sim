@@ -1,12 +1,12 @@
- 
-const MAX_SIZE = 0.05;
-const MIN_SIZE = 0.005;
+const SIM_SIZE = 1;
+
+const MAX_SIZE = 0.02;
+const MIN_SIZE = 0.002;
 
 const MAX_SPLIT_THRESH = 100;
 const MIN_SPLIT_THRESH = 0.05
 
-const DEFAULT_PT_SIZE = 5;
-const MIN_POP = 1;
+const MIN_POP = 50;
 const MAX_POP = 2000;
 const MAX_INIT_VEL = 0.0001;
 const VEL_JITTER = MAX_INIT_VEL;
@@ -15,7 +15,7 @@ const ANG_MOVE_SPEED = 0.05;
 const LIN_MOVE_SPEED = MAX_INIT_VEL;
 
 const EAT_SIZE_THRESH = 0.95;
-const ENERGY_SIZE_COST = 0.2 / (MAX_SIZE * MAX_SIZE);
+const ENERGY_SIZE_COST = 0.12 / (MAX_SIZE * MAX_SIZE);
 const ENERGY_MOVE_COST = 0.0005;
 const ENERGY_OVERLAP_COST = 0.005;
 const BASE_ENERGY_INCREASE = ENERGY_SIZE_COST * ((MAX_SIZE - MIN_SIZE) / 10 + MIN_SIZE)**2;
@@ -29,11 +29,14 @@ const SIZE_MUT_FRAC = 0.02;
 const SPLIT_R_MUT_SIZE = 0.01;
 const SPLIT_T_MUT_SIZE = 0.1;
 const CLOCK_RATE_MUT_SIZE = 0.01;
-const COLOR_MUT_SIZE = 7;
+const COLOR_MUT_SIZE = 5;
+const BRAIN_PARAM_MUT_SIZE = 0.01;
 
 const BRAIN_SIZE = 64;
 
-
+const BRAIN_HID_SIZE = 16;
+const BRAIN_LAYERS = 4;
+const BRAIN_MEM_SIZE = 8;
 
 
 const rand_in_range = (low, high) => {
@@ -103,6 +106,10 @@ class Vec2 {
     return new Vec2(Math.cos(angle), Math.sin(angle));
   }
 
+  asUnit() {
+    return this.mulSc(1 / (this.norm()));
+  }
+
   mulSc(scalar) {
     return new Vec2(this.x * scalar, this.y * scalar);
   }
@@ -147,6 +154,227 @@ class Vec2 {
 }
 
 
+/*
+  Basic neural net
+ */
+class BasicNN {
+  constructor(ins, hids, outs, layers, weights, biases) {
+    this.weights = weights;
+    this.biases = biases;
+
+    this.num_layers = layers;
+    this.in_size = ins;
+    this.hid_size = hids;
+    this.out_size = outs;
+  }
+
+  static rand(ins, hids, outs, layers) {
+    const weights = [];
+    const num_weights = (layers-2)*hids*hids + ins*hids + hids*outs;
+    for (let i=0; i < num_weights; i++) {
+      weights.push(Math.random()-0.5);
+    }
+
+    const biases = [];
+    const num_biases = (layers-1)*hids + outs;
+    for (let i=0; i < num_biases; i++) {
+      biases.push(Math.random() - 0.5);
+    }
+
+    return new BasicNN(ins, hids, outs, layers, weights, biases);
+  }
+
+
+  forward(x) {
+    
+    let layer_x = BasicNN.matmul(x, this.weights, this.in_size, 
+                                 this.hid_size, 0);
+    layer_x = BasicNN.addVec(layer_x, this.biases, this.hid_size, 0);
+    layer_x = BasicNN.hid_act(layer_x, this.hid_size)
+    
+    let weight_start = this.in_size * this.hid_size; 
+    let bias_start = this.hid_size;
+
+    for (let i=1; i < this.num_layers-1; i++) {
+      layer_x = BasicNN.matmul(layer_x, this.weights, this.hid_size, 
+                               this.hid_size, weight_start);
+      layer_x = BasicNN.addVec(layer_x, this.biases, this.hid_size, 
+                               bias_start);
+      layer_x = BasicNN.hid_act(layer_x, this.hid_size);
+      weight_start += this.hid_size * this.hid_size;
+      bias_start += this.hid_size;
+    }
+
+    layer_x = BasicNN.matmul(layer_x, this.weights, this.hid_size,
+                             this.out_size, weight_start);
+    layer_x = BasicNN.addVec(layer_x, this.biases, this.out_size,
+                             bias_start);
+    return BasicNN.out_act(layer_x, this.out_size);
+  }
+
+
+  static matmul(x, W, w_n, w_m, w_index_start) {
+    const result = [];
+    let sum;
+    let W_i;
+    for (let i=0; i < w_m; i++) {
+      sum = 0;
+      W_i = w_index_start + i * w_n;
+      for (let j=0; j < w_n; j++) {
+        sum += x[j] * W[W_i + j];
+      }
+      result[i] = sum;
+    }
+    return result;
+  }
+
+  static addVec(x, b, n, b_index_start) {
+    const result = [];
+    for (let i=0; i < n; i++) {
+      result[i] = x[i] + b[i + b_index_start];
+    }
+
+    return result;
+  }
+
+  static hid_act(x, n) {
+    const result = [];
+    for (let i=0; i<n; i++) {
+      result[i] = Math.max(x[i], 0);
+    }
+    return result;
+  }
+
+  static out_act(x, n) {
+    return x;
+  }
+
+  getWeights() {
+    return this.weights;
+  }
+
+  getBiases() {
+    return this.biases;
+  }
+
+  getInSize() {
+    return this.in_size;
+  }
+  
+  getHidSize() {
+    return this.hid_size;
+  }
+
+  getOutSize() {
+    return this.out_size;
+  }
+
+  getNumLayers() {
+    return this.num_layers;
+  }
+
+}
+
+
+
+
+
+class NeuralBrain {
+  constructor(nn) {
+    this.clock = 0;
+    
+    this.memory = new Array(BRAIN_MEM_SIZE).fill(0);
+    this.nn = nn;
+
+    this.closest_diff_vec = Vec2.rand();
+    this.closest_dist = SIM_SIZE * 2;
+    this.closest_size = MIN_SIZE;
+    
+    this.angle_vec = undefined;
+    this.energy = undefined;
+    this.size = undefined;
+  }
+
+  static rand() {
+    return new NeuralBrain(BasicNN.rand(BRAIN_MEM_SIZE + 6, BRAIN_HID_SIZE, BRAIN_MEM_SIZE + 2, BRAIN_LAYERS));
+  }
+
+
+  getMove() {
+    //calc closest_angle
+    const diff_unit = this.closest_diff_vec.asUnit();
+    const angle_cross = this.angle_vec.cross(diff_unit);
+    const angle_dot = this.angle_vec.dot(diff_unit);
+    const relative_size = this.size / this.closest_size - 1;
+    const ins = [
+                  this.clock, 
+                  this.energy,
+                  this.closest_dist,
+                  angle_cross,
+                  angle_dot,
+                  relative_size,
+                ];
+
+    for (let i=0; i<this.memory.length; i++){
+      ins.push(this.memory[i]);
+    }
+
+    const outs = this.nn.forward(ins);
+  
+    this.memory = outs.slice(0, BRAIN_MEM_SIZE);
+    this.clock = (this.clock + 1) % 256;
+
+    return outs.slice(BRAIN_MEM_SIZE, BRAIN_MEM_SIZE+2);
+  }
+
+  mut_copy() {
+    const weights = this.nn.getWeights();
+    const biases = this.nn.getBiases();
+
+    const new_weights = weights.map((x) => {
+      return x + rand_in_range(-BRAIN_PARAM_MUT_SIZE, BRAIN_PARAM_MUT_SIZE);
+    });
+
+    const new_biases = biases.map((x) => {
+      return x + rand_in_range(-BRAIN_PARAM_MUT_SIZE, BRAIN_PARAM_MUT_SIZE);
+    });
+
+
+    const new_nn = new BasicNN(
+                               this.nn.getInSize(), 
+                               this.nn.getHidSize(), 
+                               this.nn.getOutSize(), 
+                               this.nn.getNumLayers(), 
+                               new_weights, 
+                               new_biases
+                       );
+    return new NeuralBrain(new_nn);
+  }
+
+  setEnergy(energy) {
+    this.energy = energy;
+  }
+
+  setAngleVec(angle_vec) {
+    this.angle_vec = angle_vec;
+  }
+
+  setSize(size) {
+    this.size = size;
+  }
+
+  sense(dist, diff_vec, other_size) {
+    if (dist < this.closest_dist) {
+      this.closest_dist = dist;
+      this.closest_diff_vec = diff_vec;
+      this.closest_size = other_size;
+    }
+  }
+
+
+}
+
+
 class Brain {
   constructor(program, clock_rate) {
     this.clock = 0;
@@ -155,8 +383,8 @@ class Brain {
   }
 
   static rand() {
-    return new Brain('0'.repeat(BRAIN_SIZE), Math.random() * 10);
-    //return new Brain(rand_hex(BRAIN_SIZE), Math.random() * 5)
+    //return new Brain('0'.repeat(BRAIN_SIZE), Math.random() * 10);
+    return new Brain(rand_hex(BRAIN_SIZE), Math.random() * 5)
   }
 
   getMove() {
@@ -200,6 +428,7 @@ class Gene {
     this.split_ratio = split_ratio;
     this.split_thresh = split_thresh;
     this.brain = brain;
+    this.brain.setSize(size);
   }
 
   static rand() {
@@ -208,7 +437,7 @@ class Gene {
                     rand_color(), 
                     Math.random(),
                     Math.random() * 5,
-                    Brain.rand());
+                    NeuralBrain.rand());
   }
 
   getSize() {
@@ -318,8 +547,12 @@ class Pop {
       this.alive = false;
     }
 
-
+    this.gene.brain.setAngleVec(this.angle_vec);
+    this.gene.brain.setEnergy(this.energy);
     const [ang_move, lin_move] = this.gene.brain.getMove();
+    if (!ang_move || !lin_move) {
+      this.alive = false;
+    }
 
     if (this.angle_vec != 0) {
       this.angle_vec = this.angle_vec.rotate(ang_move*ANG_MOVE_SPEED);
@@ -331,14 +564,16 @@ class Pop {
     
   }
 
-  collidesWith(other) {
-    const oPos = other.getPos().mulSc(-1);
-    const dist = this.pos.addVec(oPos).norm();
+  collidesWith(other, dist) {
     return (dist < Math.max(Math.min(this.size, other.getSize()), (this.size + other.getSize())/4));
   }
 
   interact(other) {
-    if (this.collidesWith(other)) {
+    const oPos = other.getPos().mulSc(-1);
+    const diff_vec = this.pos.addVec(oPos);
+    const dist = diff_vec.norm();
+
+    if (this.collidesWith(other, dist)) {
       if (this.size_sq < other.getSizeSq() * EAT_SIZE_THRESH) {
         other.eat(this);
       }
@@ -350,6 +585,9 @@ class Pop {
         this.enervate();
       }
     }
+
+    this.gene.brain.sense(dist, diff_vec, other.getSize());
+    other.gene.brain.sense(dist, diff_vec, this.size);
   }
 
   isAlive() {
