@@ -1,28 +1,33 @@
 const SIM_SIZE = 1;
 
-const MAX_SIZE = 0.02;
-const MIN_SIZE = 0.002;
+const MAX_SIZE = 0.05;
+const MIN_SIZE = 0.001;
 
 const MAX_SPLIT_THRESH = 100;
 const MIN_SPLIT_THRESH = 0.05
 
-const MIN_POP = 50;
-const MAX_POP = 2000;
+const SOFT_POP_CAP = true;
+const MIN_POP = 3;
+const MAX_POP = 1800;
 const MAX_INIT_VEL = 0.0001;
+const MAX_VEL = 0.01;
 const VEL_JITTER = MAX_INIT_VEL;
 const POS_JITTER = (MAX_SIZE + MIN_SIZE) / 2;
 const ANG_MOVE_SPEED = 0.05;
 const LIN_MOVE_SPEED = MAX_INIT_VEL;
 
 const EAT_SIZE_THRESH = 0.95;
-const ENERGY_SIZE_COST = 0.12 / (MAX_SIZE * MAX_SIZE);
-const ENERGY_MOVE_COST = 0.0005;
+const EAT_SIZE_ENERGY = 1;
+const ENERGY_SIZE_COST = 1 / (MAX_SIZE * MAX_SIZE);
+const ENERGY_MOVE_COST = 0.0001;
 const ENERGY_OVERLAP_COST = 0.005;
-const BASE_ENERGY_INCREASE = ENERGY_SIZE_COST * ((MAX_SIZE - MIN_SIZE) / 10 + MIN_SIZE)**2;
+const PASSIVE_ENERGY_INCREASE = ENERGY_SIZE_COST * ((MAX_SIZE - MIN_SIZE) / 5 + MIN_SIZE)**2;
 
-const FRICTION_COEFF = 0.99;
+let global_effective_passive_energy = PASSIVE_ENERGY_INCREASE;
 
-console.log(BASE_ENERGY_INCREASE);
+
+const FRICTION_COEFF = 0.9;
+
 
 const MUT_PROB = 0.5;
 const SIZE_MUT_FRAC = 0.02;
@@ -34,10 +39,14 @@ const BRAIN_PARAM_MUT_SIZE = 0.01;
 
 const BRAIN_SIZE = 64;
 
-const BRAIN_HID_SIZE = 16;
-const BRAIN_LAYERS = 4;
+const BRAIN_HID_SIZE = 32;
+const BRAIN_LAYERS = 5;
 const BRAIN_MEM_SIZE = 8;
 
+
+const set_effective_passive_energy = (pop_size) => {
+  global_effective_passive_energy = PASSIVE_ENERGY_INCREASE-Math.exp(pop_size - MAX_POP);
+}
 
 const rand_in_range = (low, high) => {
   return Math.random() * (high - low) + low;
@@ -140,6 +149,13 @@ class Vec2 {
     return new Vec2(this.x*cos_ang - this.y * sin_ang, this.x * sin_ang + this.y * cos_ang );
   }
 
+  clip(low, high) {
+    return new Vec2(
+                    Math.max(Math.min(this.x, high), low),
+                    Math.max(Math.min(this.y, high), low)
+               );
+  }
+
   norm() {
     return Math.sqrt((this.x * this.x) + (this.y * this.y));
   }
@@ -172,13 +188,13 @@ class BasicNN {
     const weights = [];
     const num_weights = (layers-2)*hids*hids + ins*hids + hids*outs;
     for (let i=0; i < num_weights; i++) {
-      weights.push(Math.random()-0.5);
+      weights.push(0);
     }
 
     const biases = [];
     const num_biases = (layers-1)*hids + outs;
     for (let i=0; i < num_biases; i++) {
-      biases.push(Math.random() - 0.5);
+      biases.push((Math.random()-0.5) / BRAIN_HID_SIZE / BRAIN_HID_SIZE);
     }
 
     return new BasicNN(ins, hids, outs, layers, weights, biases);
@@ -542,7 +558,7 @@ class Pop {
     this.vel = this.vel.mulSc(FRICTION_COEFF);
     
     this.energy -= this.size_sq * ENERGY_SIZE_COST;
-    this.energy += BASE_ENERGY_INCREASE;
+    this.energy += global_effective_passive_energy;
     if (this.energy < 0) {
       this.alive = false;
     }
@@ -557,7 +573,7 @@ class Pop {
     if (this.angle_vec != 0) {
       this.angle_vec = this.angle_vec.rotate(ang_move*ANG_MOVE_SPEED);
     }
-    this.vel = this.vel.addVec(this.angle_vec.mulSc(lin_move * LIN_MOVE_SPEED));
+    this.vel = this.vel.addVec(this.angle_vec.mulSc(lin_move * LIN_MOVE_SPEED)).clip(-MAX_VEL, MAX_VEL);
     
     this.energy -= ENERGY_MOVE_COST * Math.abs(lin_move);
 
@@ -600,7 +616,7 @@ class Pop {
   }
 
   eat(other) {
-    this.energy += other.getEnergy();
+    this.energy += other.getEnergy() + other.getSizeSq() * EAT_SIZE_ENERGY;
     other.kill();
   }
 
@@ -712,8 +728,13 @@ class EvoSim {
         k--;
       }
 
-      if (this.pop.length > MAX_POP) {
-        this.pop = this.pop.slice(0, MAX_POP);
+      if (SOFT_POP_CAP) {
+        set_effective_passive_energy(this.pop.length);
+      }
+      else {
+        if (this.pop.length > MAX_POP) {
+          this.pop = this.pop.slice(0, MAX_POP);
+        }
       }
     }
   }
