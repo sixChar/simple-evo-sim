@@ -29,13 +29,13 @@ let global_effective_passive_energy = PASSIVE_ENERGY_INCREASE;
 const FRICTION_COEFF = 0.9;
 
 
-const MUT_PROB = 0.5;
+const MUT_PROB = 0.3;
 const SIZE_MUT_FRAC = 0.02;
 const SPLIT_R_MUT_SIZE = 0.01;
 const SPLIT_T_MUT_SIZE = 0.1;
 const CLOCK_RATE_MUT_SIZE = 0.01;
 const COLOR_MUT_SIZE = 5;
-const BRAIN_PARAM_MUT_SIZE = 0.05;
+const BRAIN_PARAM_MUT_SIZE = 0.025;
 
 const BRAIN_SIZE = 64;
 
@@ -581,7 +581,9 @@ class Pop {
   }
 
   collidesWith(other, dist) {
-    return (dist < Math.max(Math.min(this.size, other.getSize()), (this.size + other.getSize())/4));
+    //const collDist = Math.max(Math.min(this.size, other.getSize()), (this.size + other.getSize())/4);
+    const collDist = Math.min(this.size, other.getSize());
+    return (dist < collDist);
   }
 
   interact(other) {
