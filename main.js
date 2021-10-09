@@ -35,7 +35,7 @@ const SPLIT_R_MUT_SIZE = 0.01;
 const SPLIT_T_MUT_SIZE = 0.1;
 const CLOCK_RATE_MUT_SIZE = 0.01;
 const COLOR_MUT_SIZE = 5;
-const BRAIN_PARAM_MUT_SIZE = 0.01;
+const BRAIN_PARAM_MUT_SIZE = 0.05;
 
 const BRAIN_SIZE = 64;
 
